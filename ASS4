@@ -1,0 +1,126 @@
+//KC03O8EA JOB ,'SAM PIECZ',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+*********************************************************************
+*
+*   Register Usage
+*
+*   Register 1         Holds parameters
+*   Register 2         Contains a pointer to the Table
+*   Register 3         Contains the end of the table
+*   Register 5         Acts as a counter plus is used in divide oprtns
+*   Register 6         Stores the even values to print
+*   Register 7         Not used.
+*   Register 8         Not used.
+*   Register 9         Not used.
+*   Register 10        Not used.
+*   Register 11        Has build Subroutine
+*   Register 12        Has print Subroutine
+*   Register 13        Has evens Subroutine
+*   Register 14        Nope.
+*   Register 15        Address of ASS4 itself
+*
+*********************************************************************
+*
+ASS4     CSECT
+         USING ASS4,15
+         LA    1,PARMS                   Load parameters into R1
+         BAL   11,BUILD                  Subroutine at R11
+         BAL   12,PRINT                  Subroutine at R12
+         BAL   13,EVENS                  Subroutine at R13
+         BR    14                        End main program
+         LTORG                           Literal pool
+TABLE    DC    62F'-4'                   Define table
+EOT      DS    F                         Define end of table
+PARMS    DC    A(TABLE)                  Table parameter
+         DC    A(EOT)                    End of table parameter
+*
+*
+* START: BUILD TABLE LOOP
+BUILD    STM   1,6,BSAVE                 Begin build subroutine
+         LM    2,3,0(1)                  Load R2 & R3 with parameters
+         L     4,=F'0'                   Declare counter
+TOPLOOP  XREAD BUFFER,80                 Start reading data in toploop
+         BC    B'0100',ENDL1             Check if file is done
+         LA    1,BUFFER                  Load buffer into R1
+TOPLOOP2 XDECI 5,0(1)                    Iterate on R1 for nums
+         BC    B'0001',TOPLOOP           If line over get more data
+         ST    5,0(0,2)                  Store num in table
+         A     4,=F'1'                   Increment R4 counter
+         C     4,=F'62'                  Check if table full
+         BC    B'1000',ENDL1             If table full stop
+         A     2,=F'4'                   Increment table pointer
+         BC    B'1111',TOPLOOP2          Do it all again please
+ENDL1    ST    2,0(0,3)                  Populate end of table
+         LM    1,6,BSAVE                 Load R1 - R6 with data
+         BR    11                        End subroutine goto main
+BUFFER   DS    80C                       Declare buffer var
+         DC    C'*'                      Use to find line's end
+BSAVE    DS    6F                        Instantiate BSAVE
+* END:   BUILD TABLE LOOP
+*
+*
+* START: PRINT LOOP
+PRINT    STM   1,6,PSAVE                 Begin normal print subroutine
+         LM    2,3,0(1)                  Load parameters for usage
+         XPRNT HEADER,73                 Give us that nice header
+         XPRNT BLANK,73                  Give us that nice blank line
+PLOOP    CR    2,3                       Loop and compare EOT & pntr
+         BC    B'1010',PRETURN           If at EOT we're done
+         L     5,0(0,2)                  Load into R5
+         XDECO 5,NUMBER                  Put decimal num in label
+         XPRNT LINE,13                   Print out line with num
+         LA    2,4(0,2)                  Increment table pointer
+         BC    B'1111',PLOOP             Do it againnnnnnn
+PRETURN  LM    1,6,PSAVE                 Load R1 - R6 with data
+         BR    12                        End PRINT subroutine
+PSAVE    DS    6F                        Define PSAVE
+* END:   PRINT NORMAL LOOP
+*
+*
+* START: PRINT EVENS LOOP
+EVENS    STM   1,6,ESAVE                 Begin even print subroutine
+         LM    2,3,0(1)                  Load parameters for usage
+         XPRNT BLANK,73                  Print \n blank LINE
+         XPRNT EVEN,73                   Print even header
+         XPRNT BLANK,73                  Print another blank
+LOOPE    CR    2,3                       Loop even and compare ptr
+         BC    B'1010',ERETURN           End loop if at EOT
+         L     5,0(0,2)                  Load num to compare
+         L     6,0(0,2)                  Load num to print
+         SR    4,4                       Clear out R4
+         D     4,=F'2'                   Divide R5 by 2
+         C     4,=F'0'                   Compare to see if even
+         BC    B'0111',INCRE             If odd skip, else print
+         XDECO 6,NUMBER                  Load R6 into num for print
+         XPRNT LINE,13                   Print the num
+INCRE    LA    2,4(0,2)                  Increment the table pointer
+         BC    B'1111',LOOPE             Do it againnnnnnn
+ERETURN  LM    1,6,ESAVE                 Load R1 - R6 with ESAVE
+         BR    13                        End subroutine goto main
+ESAVE    DS    6F                        Define ESAVE as 6 fullwords
+* END:   PRINT EVENS LOOP
+*
+*
+* START: DECLARE PRINTING INFO & VARS
+HEADER   DC    C' '                      Start string header
+         DC    CL29' '                   Add 29 spaces
+         DC    CL15'List of Numbers'     Print out the actual header
+         DC    CL29' '                   Add 29 more spaces
+BLANK    DC    C' '                      Define a blank line
+         DC    CL73' '                   A blank line is 73 spaces
+LINE     DC    C' '                      Define a line
+NUMBER   DS    CL12                      A line contains a number
+EVEN     DC    C' '                      Define an even string
+         DC    CL27' '                   An even string is 27 spaces
+         DC    CL20'List of Even Numbers' It has a header
+         DC    CL25' '                   Followed by 25 more spaces
+* END:   DECLARE PRINTING INFO & VARS
+*
+*
+         END   ASS4
+/*
+//FT05F001  DD  DSN=KC02314.AUTUMN18.CSCI360.HW4DATA,DISP=SHR
+//
